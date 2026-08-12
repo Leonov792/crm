@@ -4,10 +4,14 @@ import (
 	"crm/internal/api"
 	"crm/internal/db"
 	"embed"
+	"fmt"
 	"io/fs"
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
+	"runtime"
+	"time"
 )
 
 //go:embed frontend/dist
@@ -18,10 +22,18 @@ func main() {
 
 	database, err := db.Init("crm.db")
 	if err != nil {
-		log.Fatalf("Database: %v", err)
+		fmt.Println("============================================")
+		fmt.Println("  ERROR: Cannot create database crm.db")
+		fmt.Println("  " + err.Error())
+		fmt.Println("  Try running as Administrator or move the")
+		fmt.Println("  executable to a writable folder (Desktop).")
+		fmt.Println("============================================")
+		fmt.Println()
+		fmt.Println("Press Enter to close...")
+		fmt.Scanln()
+		return
 	}
 	defer database.Close()
-	log.Println("SQLite initialized")
 
 	mux := http.NewServeMux()
 	apiHandler := api.NewHandler(database)
@@ -29,11 +41,9 @@ func main() {
 
 	distFS, err := fs.Sub(frontendFS, "frontend/dist")
 	if err != nil {
-		log.Printf("Frontend not embedded (dev mode): %v", err)
+		log.Printf("Frontend not embedded: %v", err)
 	} else {
-		fileServer := http.FileServer(http.FS(distFS))
-		mux.Handle("/", fileServer)
-		log.Println("Frontend embedded")
+		mux.Handle("/", http.FileServer(http.FS(distFS)))
 	}
 
 	port := os.Getenv("PORT")
@@ -41,10 +51,46 @@ func main() {
 		port = "8080"
 	}
 
-	log.Printf("CRM Server starting on http://localhost:%s", port)
+	url := "http://localhost:" + port
+
+	// Авто-открытие браузера через 1 секунду после старта
+	go func() {
+		time.Sleep(1 * time.Second)
+		openBrowser(url)
+	}()
+
+	fmt.Println("============================================")
+	fmt.Println("  CRM SERVER RUNNING")
+	fmt.Println("  Open in browser: " + url)
+	fmt.Println("  (Browser should open automatically)")
+	fmt.Println()
+	fmt.Println("  Press Ctrl+C to stop the server")
+	fmt.Println("============================================")
+
 	if err := http.ListenAndServe(":"+port, corsMiddleware(mux)); err != nil {
-		log.Fatalf("Server: %v", err)
+		fmt.Println()
+		fmt.Println("============================================")
+		fmt.Println("  ERROR: Port " + port + " is already in use")
+		fmt.Println("  Close other programs or set PORT env var.")
+		fmt.Println("  Example: set PORT=9000 && crm-server.exe")
+		fmt.Println("============================================")
+		fmt.Println()
+		fmt.Println("Press Enter to close...")
+		fmt.Scanln()
 	}
+}
+
+func openBrowser(url string) {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+	case "darwin":
+		cmd = exec.Command("open", url)
+	default:
+		cmd = exec.Command("xdg-open", url)
+	}
+	_ = cmd.Start()
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
