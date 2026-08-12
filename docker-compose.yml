@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  # Существующий Go CRM (:8080)
+  go-crm:
+    build:
+      context: .
+      dockerfile: Dockerfile.go
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./crm.db:/crm.db
+    restart: unless-stopped
+
+  # Новый Elixir/Phoenix дашборд (:4000)
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile.elixir
+    ports:
+      - "4000:4000"
+    environment:
+      GO_API_URL: "http://go-crm:8080/api"
+      MIX_ENV: dev
+    depends_on:
+      - go-crm
+    restart: unless-stopped
+    volumes:
+      - ./dashboard:/app

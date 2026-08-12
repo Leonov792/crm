@@ -1,0 +1,45 @@
+name: Build CRM (All Platforms)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-all:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.22' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+
+      - name: Build Frontend (React)
+        run: cd frontend && npm install && npm run build
+
+      - name: Build Go (Windows amd64)
+        run: GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o crm-server.exe .
+
+      - name: Build Go (Linux amd64)
+        run: GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o crm-server-linux .
+
+      - name: Build Go (macOS Intel)
+        run: GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -o crm-server-mac-intel .
+
+      - name: Build Go (macOS Apple Silicon M1/M2/M3)
+        run: GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o crm-server-mac-arm64 .
+
+      - name: Build Go (Linux ARM64)
+        run: GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o crm-server-linux-arm64 .
+
+      - name: Upload all binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: crm-binaries
+          path: |
+            crm-server.exe
+            crm-server-linux
+            crm-server-mac-intel
+            crm-server-mac-arm64
+            crm-server-linux-arm64

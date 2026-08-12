@@ -1,0 +1,18 @@
+{
+  "appId": "crm.app",
+  "appName": "CRM",
+  "webDir": "../frontend/dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https",
+    "url": "http://localhost:8080",
+    "cleartext": true
+  },
+  "android": {
+    "buildOptions": {
+      "keystorePath": "",
+      "keystorePassword": "",
+      "keystoreAlias": ""
+    }
+  }
+}

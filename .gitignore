@@ -1,0 +1,41 @@
+# Build artifacts
+_build/
+deps/
+target/
+node_modules/
+dist/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Database
+*.db
+*.db-wal
+*.db-shm
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Elixir
+priv/native/
+priv/static/
+
+# Go
+crm-server*
+hot_wallet*
+
+# Logs
+*.log
+phx*.log
+erl_crash.dump
+
+# Cache
+.cargo/
+npm-cache/
