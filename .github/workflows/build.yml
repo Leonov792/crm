@@ -1,4 +1,4 @@
-name: Build CRM (All Platforms)
+name: Build & Test CRM (All Platforms)
 
 on:
   push:
@@ -6,6 +6,7 @@ on:
   pull_request:
 
 jobs:
+  # ============ UBUNTU: build all + test Linux amd64 + ARM64 ============
   build-all:
     runs-on: ubuntu-latest
     steps:
@@ -39,15 +40,20 @@ jobs:
           ./crm-server-linux > /tmp/crm.log 2>&1 &
           SERVER_PID=$!
           sleep 3
-          echo "=== Health check ==="
           curl -sf http://localhost:8080/api/health && echo ""
-          echo "=== Frontend check ==="
           curl -sf http://localhost:8080 | grep -q "root" && echo "FRONTEND OK" || (echo "FRONTEND FAIL"; cat /tmp/crm.log; exit 1)
-          echo "=== Task API check ==="
           curl -sf -X POST http://localhost:8080/api/tasks -H "Content-Type: application/json" -d '{"title":"CI Test","status":"todo"}' && echo ""
           curl -sf http://localhost:8080/api/tasks | grep -q "CI Test" && echo "TASK CRUD OK" || (echo "TASK FAIL"; exit 1)
-          echo "=== LINUX BINARY WORKS ==="
+          echo "=== LINUX AMD64 BINARY WORKS ==="
           kill $SERVER_PID
+
+      - name: Set up QEMU for ARM64
+        uses: docker/setup-qemu-action@v3
+
+      - name: Test Linux ARM64 binary (QEMU emulation)
+        run: |
+          docker run --rm --platform linux/arm64 -v $PWD:/app alpine \
+            sh -c "cd /app && chmod +x crm-server-linux-arm64 && ./crm-server-linux-arm64 > /tmp/crm-arm64.log 2>&1 & sleep 3; wget -qO- http://localhost:8080/api/health && echo ' HEALTH OK'; wget -qO- http://localhost:8080 | grep -q root && echo 'ARM64 FRONTEND OK' || (echo 'ARM64 FAIL'; cat /tmp/crm-arm64.log; exit 1); echo '=== LINUX ARM64 BINARY WORKS ==='"
 
       - name: Upload all binaries
         uses: actions/upload-artifact@v4
@@ -59,3 +65,61 @@ jobs:
             crm-server-mac-intel
             crm-server-mac-arm64
             crm-server-linux-arm64
+
+  # ============ macOS INTEL: native build + runtime test ============
+  test-macos-intel:
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.25' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+
+      - name: Build Frontend (React)
+        run: cd frontend && npm install && npm run build
+
+      - name: Build Go (macOS Intel native)
+        run: CGO_ENABLED=0 go build -o crm-server-mac-intel .
+
+      - name: Test macOS Intel binary (runtime)
+        run: |
+          chmod +x crm-server-mac-intel
+          ./crm-server-mac-intel > /tmp/crm-mac.log 2>&1 &
+          SERVER_PID=$!
+          sleep 3
+          curl -sf http://localhost:8080/api/health && echo ""
+          curl -sf http://localhost:8080 | grep -q "root" && echo "FRONTEND OK" || (echo "FRONTEND FAIL"; cat /tmp/crm-mac.log; exit 1)
+          curl -sf -X POST http://localhost:8080/api/tasks -H "Content-Type: application/json" -d '{"title":"Mac Intel Test","status":"todo"}' && echo ""
+          curl -sf http://localhost:8080/api/tasks | grep -q "Mac Intel Test" && echo "TASK CRUD OK" || (echo "TASK FAIL"; exit 1)
+          echo "=== MACOS INTEL BINARY WORKS ==="
+          kill $SERVER_PID
+
+  # ============ macOS APPLE SILICON: native build + runtime test ============
+  test-macos-arm64:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.25' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+
+      - name: Build Frontend (React)
+        run: cd frontend && npm install && npm run build
+
+      - name: Build Go (macOS Apple Silicon native)
+        run: CGO_ENABLED=0 go build -o crm-server-mac-arm64 .
+
+      - name: Test macOS Apple Silicon binary (runtime)
+        run: |
+          chmod +x crm-server-mac-arm64
+          ./crm-server-mac-arm64 > /tmp/crm-mac-arm.log 2>&1 &
+          SERVER_PID=$!
+          sleep 3
+          curl -sf http://localhost:8080/api/health && echo ""
+          curl -sf http://localhost:8080 | grep -q "root" && echo "FRONTEND OK" || (echo "FRONTEND FAIL"; cat /tmp/crm-mac-arm.log; exit 1)
+          curl -sf -X POST http://localhost:8080/api/tasks -H "Content-Type: application/json" -d '{"title":"Mac ARM Test","status":"todo"}' && echo ""
+          curl -sf http://localhost:8080/api/tasks | grep -q "Mac ARM Test" && echo "TASK CRUD OK" || (echo "TASK FAIL"; exit 1)
+          echo "=== MACOS ARM64 BINARY WORKS ==="
+          kill $SERVER_PID
