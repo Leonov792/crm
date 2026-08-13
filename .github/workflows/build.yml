@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
-        with: { go-version: '1.22' }
+        with: { go-version: '1.25' }
       - uses: actions/setup-node@v4
         with: { node-version: '20' }
 
@@ -32,6 +32,22 @@ jobs:
 
       - name: Build Go (Linux ARM64)
         run: GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o crm-server-linux-arm64 .
+
+      - name: Test Linux amd64 binary (runtime)
+        run: |
+          chmod +x crm-server-linux
+          ./crm-server-linux > /tmp/crm.log 2>&1 &
+          SERVER_PID=$!
+          sleep 3
+          echo "=== Health check ==="
+          curl -sf http://localhost:8080/api/health && echo ""
+          echo "=== Frontend check ==="
+          curl -sf http://localhost:8080 | grep -q "root" && echo "FRONTEND OK" || (echo "FRONTEND FAIL"; cat /tmp/crm.log; exit 1)
+          echo "=== Task API check ==="
+          curl -sf -X POST http://localhost:8080/api/tasks -H "Content-Type: application/json" -d '{"title":"CI Test","status":"todo"}' && echo ""
+          curl -sf http://localhost:8080/api/tasks | grep -q "CI Test" && echo "TASK CRUD OK" || (echo "TASK FAIL"; exit 1)
+          echo "=== LINUX BINARY WORKS ==="
+          kill $SERVER_PID
 
       - name: Upload all binaries
         uses: actions/upload-artifact@v4
